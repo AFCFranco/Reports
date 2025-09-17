@@ -1,0 +1,235 @@
+/*
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+var showControllersOnly = false;
+var seriesFilter = "";
+var filtersOnlySampleSeries = true;
+
+/*
+ * Add header in statistics table to group metrics by category
+ * format
+ *
+ */
+function summaryTableHeader(header) {
+    var newRow = header.insertRow(-1);
+    newRow.className = "tablesorter-no-sort";
+    var cell = document.createElement('th');
+    cell.setAttribute("data-sorter", false);
+    cell.colSpan = 1;
+    cell.innerHTML = "Requests";
+    newRow.appendChild(cell);
+
+    cell = document.createElement('th');
+    cell.setAttribute("data-sorter", false);
+    cell.colSpan = 3;
+    cell.innerHTML = "Executions";
+    newRow.appendChild(cell);
+
+    cell = document.createElement('th');
+    cell.setAttribute("data-sorter", false);
+    cell.colSpan = 7;
+    cell.innerHTML = "Response Times (ms)";
+    newRow.appendChild(cell);
+
+    cell = document.createElement('th');
+    cell.setAttribute("data-sorter", false);
+    cell.colSpan = 1;
+    cell.innerHTML = "Throughput";
+    newRow.appendChild(cell);
+
+    cell = document.createElement('th');
+    cell.setAttribute("data-sorter", false);
+    cell.colSpan = 2;
+    cell.innerHTML = "Network (KB/sec)";
+    newRow.appendChild(cell);
+}
+
+/*
+ * Populates the table identified by id parameter with the specified data and
+ * format
+ *
+ */
+function createTable(table, info, formatter, defaultSorts, seriesIndex, headerCreator) {
+    var tableRef = table[0];
+
+    // Create header and populate it with data.titles array
+    var header = tableRef.createTHead();
+
+    // Call callback is available
+    if(headerCreator) {
+        headerCreator(header);
+    }
+
+    var newRow = header.insertRow(-1);
+    for (var index = 0; index < info.titles.length; index++) {
+        var cell = document.createElement('th');
+        cell.innerHTML = info.titles[index];
+        newRow.appendChild(cell);
+    }
+
+    var tBody;
+
+    // Create overall body if defined
+    if(info.overall){
+        tBody = document.createElement('tbody');
+        tBody.className = "tablesorter-no-sort";
+        tableRef.appendChild(tBody);
+        var newRow = tBody.insertRow(-1);
+        var data = info.overall.data;
+        for(var index=0;index < data.length; index++){
+            var cell = newRow.insertCell(-1);
+            cell.innerHTML = formatter ? formatter(index, data[index]): data[index];
+        }
+    }
+
+    // Create regular body
+    tBody = document.createElement('tbody');
+    tableRef.appendChild(tBody);
+
+    var regexp;
+    if(seriesFilter) {
+        regexp = new RegExp(seriesFilter, 'i');
+    }
+    // Populate body with data.items array
+    for(var index=0; index < info.items.length; index++){
+        var item = info.items[index];
+        if((!regexp || filtersOnlySampleSeries && !info.supportsControllersDiscrimination || regexp.test(item.data[seriesIndex]))
+                &&
+                (!showControllersOnly || !info.supportsControllersDiscrimination || item.isController)){
+            if(item.data.length > 0) {
+                var newRow = tBody.insertRow(-1);
+                for(var col=0; col < item.data.length; col++){
+                    var cell = newRow.insertCell(-1);
+                    cell.innerHTML = formatter ? formatter(col, item.data[col]) : item.data[col];
+                }
+            }
+        }
+    }
+
+    // Add support of columns sort
+    table.tablesorter({sortList : defaultSorts});
+}
+
+$(document).ready(function() {
+
+    // Customize table sorter default options
+    $.extend( $.tablesorter.defaults, {
+        theme: 'blue',
+        cssInfoBlock: "tablesorter-no-sort",
+        widthFixed: true,
+        widgets: ['zebra']
+    });
+
+    var data = {"OkPercent": 99.92771084337349, "KoPercent": 0.07228915662650602};
+    var dataset = [
+        {
+            "label" : "FAIL",
+            "data" : data.KoPercent,
+            "color" : "#FF6347"
+        },
+        {
+            "label" : "PASS",
+            "data" : data.OkPercent,
+            "color" : "#9ACD32"
+        }];
+    $.plot($("#flot-requests-summary"), dataset, {
+        series : {
+            pie : {
+                show : true,
+                radius : 1,
+                label : {
+                    show : true,
+                    radius : 3 / 4,
+                    formatter : function(label, series) {
+                        return '<div style="font-size:8pt;text-align:center;padding:2px;color:white;">'
+                            + label
+                            + '<br/>'
+                            + Math.round10(series.percent, -2)
+                            + '%</div>';
+                    },
+                    background : {
+                        opacity : 0.5,
+                        color : '#000'
+                    }
+                }
+            }
+        },
+        legend : {
+            show : true
+        }
+    });
+
+    // Creates APDEX table
+    createTable($("#apdexTable"), {"supportsControllersDiscrimination": true, "overall": {"data": [0.9009385839624566, 500, 1500, "Total"], "isController": false}, "titles": ["Apdex", "T (Toleration threshold)", "F (Frustration threshold)", "Label"], "items": [{"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 04 textMe.-0 POST nonprod.identity.healthsafe-id.com/api/v3/users/phone"], "isController": false}, {"data": [0.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage."], "isController": true}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount.-5 GET prfpharmacy.optum.com/consumer/api/content/getlandingpageop:v1"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 03 setUpAccount.-0 POST nonprod.identity.healthsafe-id.com/api/v3/users/setup-auth"], "isController": false}, {"data": [0.9662162162162162, 500, 1500, "SC01_OpPhRegUsr. 07 address.-0 PUT prfpharmacy.optum.com/....v1.0/rxconsumer/update"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-0 GET prfpharmacy.optum.com/consumer/op/hsid/login-2"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-0 GET prfpharmacy.optum.com/consumer/op/hsid/login-3"], "isController": false}, {"data": [0.9736842105263158, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-0 GET prfpharmacy.optum.com/consumer/op/hsid/login-0"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-0 GET prfpharmacy.optum.com/consumer/op/hsid/login-1"], "isController": false}, {"data": [0.9407894736842105, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-1 GET nonprod.identity.healthsafe-id.com/oidc/authorize"], "isController": false}, {"data": [0.9459459459459459, 500, 1500, "SC01_OpPhRegUsr. 08 billingAddress.-2 POST prfpharmacy.optum.com/....v1.0/rxprofile/search"], "isController": false}, {"data": [0.7105263157894737, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount.-0 POST nonprod.identity.healthsafe-id.com/api/v3/users/phone/verify"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount.-9 GET prfpharmacy.optum.com/consumer/api/content/getprofilesetup:v1"], "isController": false}, {"data": [0.5460526315789473, 500, 1500, "SC01_OpPhRegUsr. 02 contRegister."], "isController": true}, {"data": [0.8986486486486487, 500, 1500, "SC01_OpPhRegUsr. 06 setUpContinue."], "isController": true}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 08 billingAddress.-1 GET prfpharmacy.optum.com/consumer/api/content/getinsurancecard:v1"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-3 GET nonprod.identity.healthsafe-id.com/oneapp/index.html"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount.-1 GET nonprod.identity.healthsafe-id.com/assets/schema/v1/registersuccess/schema.json"], "isController": false}, {"data": [0.5, 500, 1500, "SC01_OpPhRegUsr. 07 address."], "isController": true}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-1 GET nonprod.identity.healthsafe-id.com/oidc/authorize-2"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-9 GET nonprod.identity.healthsafe-id.com/assets/schema/v1/login/schema.json"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 01 registerNow.-5 GET rba-screen.healthsafe-id.com/fp/ARF;CIS3SID=5009F6A20ECC636CB9BD1F046B8A147B"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-1 GET nonprod.identity.healthsafe-id.com/oidc/authorize-1"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-7 GET nonprod.identity.healthsafe-id.com/assets/en/v1/content.json"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 02 contRegister.-1 GET nonprod.identity.healthsafe-id.com/....multistepregistration/setupAuth/schema.json"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-1 GET nonprod.identity.healthsafe-id.com/oidc/authorize-0"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 06 setUpContinue.-4 GET prfpharmacy.optum.com/consumer/api/content/getinsurancecardupload:v1"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 01 registerNow.-2 GET rba-screen.healthsafe-id.com/..../fp/top_fp.html;CIS3SID=6AD4D1A380D92632599A7E64D1E6CCEC"], "isController": false}, {"data": [0.993421052631579, 500, 1500, "SC01_OpPhRegUsr. 01 registerNow.-0 GET rba-screen.healthsafe-id.com/..../fp/ls_fp.html;CIS3SID=6AD4D1A380D92632599A7E64D1E6CCEC"], "isController": false}, {"data": [0.40131578947368424, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount.-3 POST nonprod.identity.healthsafe-id.com/oidc/auth/callback"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 02 contRegister.-0 POST nonprod.identity.healthsafe-id.com/api/v3/users/check-eligibility"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount.-2 GET nonprod.identity.healthsafe-id.com/api/secure/v1/users/next-step"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 09 enterInsurance.-0 GET prfpharmacy.optum.com/consumer/api/content/getinsuranceformthirdeye:v1"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-5 GET nonprod.identity.healthsafe-id.com/api/v2/auth/login/init"], "isController": false}, {"data": [0.4864864864864865, 500, 1500, "SC01_OpPhRegUsr. 08 billingAddress."], "isController": true}, {"data": [0.993421052631579, 500, 1500, "SC01_OpPhRegUsr. 02 contRegister.-4 POST nonprod.identity.healthsafe-id.com/api/v1/users/check-email"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount.-7 GET prfpharmacy.optum.com/consumer/api/content/getprescriberinfo:v1"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 09 enterInsurance."], "isController": true}, {"data": [0.5, 500, 1500, "SC01_OpPhRegUsr. 01 registerNow."], "isController": true}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 02 contRegister.-3 POST nonprod.identity.healthsafe-id.com/api/v1/users/checkusername"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 01 registerNow.-3 GET nonprod.identity.healthsafe-id.com/api/v1/users/registration/init"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 03 setUpAccount.-1 GET nonprod.identity.healthsafe-id.com/....multistepregistration/addTFA/schema.json"], "isController": false}, {"data": [0.9527027027027027, 500, 1500, "SC01_OpPhRegUsr. 06 setUpContinue.-2 POST prfpharmacy.optum.com/....v1.0/rxprofile/search"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-4 GET nonprod.identity.healthsafe-id.com/api/v1/users/common/chat-support-info"], "isController": false}, {"data": [0.9459459459459459, 500, 1500, "SC01_OpPhRegUsr. 08 billingAddress.-0 PUT prfpharmacy.optum.com/....v1.0/rxconsumer/update"], "isController": false}, {"data": [0.4342105263157895, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount.-3 POST nonprod.identity.healthsafe-id.com/oidc/auth/callback-1"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount.-3 POST nonprod.identity.healthsafe-id.com/oidc/auth/callback-0"], "isController": false}, {"data": [0.0, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount."], "isController": true}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-10 GET nonprod.identity.healthsafe-id.com/api/v1/auth/risk/init"], "isController": false}, {"data": [0.94, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount.-10 POST prfpharmacy.optum.com/....v1.0/rxconsumer/create"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 01 registerNow.-4 GET nonprod.identity.healthsafe-id.com/assets/schema/v1/fullstepup/schema.json"], "isController": false}, {"data": [0.9797297297297297, 500, 1500, "SC01_OpPhRegUsr. 07 address.-1 POST prfpharmacy.optum.com/....v1.0/rxprofile/search"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-6 GET nonprod.identity.healthsafe-id.com/app/error.html"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-8 GET nonprod.identity.healthsafe-id.com/api/v1/users/common/content"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 06 setUpContinue.-0 GET prfpharmacy.optum.com/consumer/op/consumer/personal-info"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount.-6 GET prfpharmacy.optum.com/consumer/api/op/secure/auth-proxy/user-info"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 01 registerNow.-1 GET rba-screen.healthsafe-id.com/fp/HP"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 04 textMe.-1 GET nonprod.identity.healthsafe-id.com/....multistepregistration/verifyTFA/schema.json"], "isController": false}, {"data": [0.4868421052631579, 500, 1500, "SC01_OpPhRegUsr. 00 landingPage.-0 GET prfpharmacy.optum.com/consumer/op/hsid/login"], "isController": false}, {"data": [0.9662162162162162, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount.-11 POST prfpharmacy.optum.com/....v1.0/rxprofile/search"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 06 setUpContinue.-1 GET prfpharmacy.optum.com/consumer/api/content/getlandingpageop:v1"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 05 createAccount.-8 GET prfpharmacy.optum.com/consumer/api/content/getpersonalinfo:v1"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 03 setUpAccount."], "isController": true}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 06 setUpContinue.-3 GET prfpharmacy.optum.com/consumer/api/content/getpersonalinfo:v1"], "isController": false}, {"data": [1.0, 500, 1500, "SC01_OpPhRegUsr. 04 textMe."], "isController": true}]}, function(index, item){
+        switch(index){
+            case 0:
+                item = item.toFixed(3);
+                break;
+            case 1:
+            case 2:
+                item = formatDuration(item);
+                break;
+        }
+        return item;
+    }, [[0, 0]], 3);
+
+    // Create statistics table
+    createTable($("#statisticsTable"), {"supportsControllersDiscrimination": true, "overall": {"data": ["Total", 4150, 3, 0.07228915662650602, 201.24819277108404, 5, 14916, 124.0, 413.0, 654.0, 1352.409999999998, 1.1525152604129059, 5.0804115342998255, 1.89626322311654], "isController": false}, "titles": ["Label", "#Samples", "FAIL", "Error %", "Average", "Min", "Max", "Median", "90th pct", "95th pct", "99th pct", "Transactions/s", "Received", "Sent"], "items": [{"data": ["SC01_OpPhRegUsr. 04 textMe.-0 POST nonprod.identity.healthsafe-id.com/api/v3/users/phone", 76, 0, 0.0, 181.18421052631578, 114, 244, 189.5, 221.3, 236.0, 244.0, 0.0211748474017905, 0.02520716697537365, 0.02940709173501127], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.", 76, 0, 0.0, 2034.1973684210525, 1610, 16219, 1825.0, 1982.3, 2147.449999999997, 16219.0, 0.03003315106635469, 1.7263269336459022, 0.404549138186875], "isController": true}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-5 GET prfpharmacy.optum.com/consumer/api/content/getlandingpageop:v1", 75, 0, 0.0, 26.6, 20, 41, 26.0, 34.0, 36.2, 41.0, 0.021300615587790485, 0.4009080940564182, 0.01793079163737832], "isController": false}, {"data": ["SC01_OpPhRegUsr. 03 setUpAccount.-0 POST nonprod.identity.healthsafe-id.com/api/v3/users/setup-auth", 76, 0, 0.0, 170.5921052631579, 109, 242, 180.0, 222.3, 225.45, 242.0, 0.021174800204615436, 0.022870438502250658, 0.029219014946204862], "isController": false}, {"data": ["SC01_OpPhRegUsr. 07 address.-0 PUT prfpharmacy.optum.com/....v1.0/rxconsumer/update", 74, 0, 0.0, 296.54054054054075, 205, 1020, 249.5, 399.0, 628.5, 1020.0, 0.02101109953923227, 0.02734443099741961, 0.03622651175571019], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-0 GET prfpharmacy.optum.com/consumer/op/hsid/login-2", 76, 0, 0.0, 143.1184210526316, 105, 210, 145.5, 167.79999999999998, 178.14999999999998, 210.0, 0.021170252563898647, 0.013975674544136216, 0.01875356203427185], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-0 GET prfpharmacy.optum.com/consumer/op/hsid/login-3", 76, 0, 0.0, 116.07894736842108, 99, 166, 112.0, 135.89999999999998, 152.14999999999998, 166.0, 0.021170352815071954, 0.0555177704220087, 0.018753650841270824], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-0 GET prfpharmacy.optum.com/consumer/op/hsid/login-0", 76, 0, 0.0, 325.30263157894746, 78, 14382, 116.0, 153.2, 366.5499999999966, 14382.0, 0.02116937393247861, 0.014138032099873764, 0.014864042829543086], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-0 GET prfpharmacy.optum.com/consumer/op/hsid/login-1", 76, 0, 0.0, 237.9473684210527, 198, 301, 238.5, 267.0, 274.6499999999999, 301.0, 0.021169621593014026, 0.024541571496218714, 0.018544092352474197], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-1 GET nonprod.identity.healthsafe-id.com/oidc/authorize", 76, 0, 0.0, 452.8157894736843, 358, 546, 457.0, 506.3, 523.9499999999999, 546.0, 0.0211716502688521, 0.09160498406763673, 0.05965517266595091], "isController": false}, {"data": ["SC01_OpPhRegUsr. 08 billingAddress.-2 POST prfpharmacy.optum.com/....v1.0/rxprofile/search", 74, 0, 0.0, 384.7702702702702, 257, 1170, 321.0, 638.0, 881.25, 1170.0, 0.02101598066529779, 0.02837085280506542, 0.027829755646624803], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-0 POST nonprod.identity.healthsafe-id.com/api/v3/users/phone/verify", 76, 0, 0.0, 501.84210526315786, 291, 1581, 530.0, 583.6, 643.2499999999985, 1581.0, 0.02117352006149236, 0.0356903209188249, 0.027337521789920233], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-9 GET prfpharmacy.optum.com/consumer/api/content/getprofilesetup:v1", 75, 0, 0.0, 18.080000000000002, 14, 32, 17.0, 23.0, 25.400000000000006, 32.0, 0.02130066398429772, 0.019803515752693044, 0.017910030947734704], "isController": false}, {"data": ["SC01_OpPhRegUsr. 02 contRegister.", 76, 0, 0.0, 582.5263157894736, 399, 1213, 576.0, 647.3, 678.0, 1213.0, 0.021171384867641238, 0.18572514674416135, 0.49331552043930066], "isController": true}, {"data": ["SC01_OpPhRegUsr. 06 setUpContinue.", 74, 0, 0.0, 487.35135135135124, 342, 1261, 435.0, 649.5, 954.0, 1261.0, 0.021009763293785767, 0.6588145064501393, 0.10720313790042053], "isController": true}, {"data": ["SC01_OpPhRegUsr. 08 billingAddress.-1 GET prfpharmacy.optum.com/consumer/api/content/getinsurancecard:v1", 74, 0, 0.0, 20.256756756756758, 15, 34, 19.0, 27.0, 29.0, 34.0, 0.021017765408223227, 0.029187611798890657, 0.021223017023537908], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-3 GET nonprod.identity.healthsafe-id.com/oneapp/index.html", 76, 0, 0.0, 112.3157894736842, 68, 177, 110.0, 123.09999999999998, 134.29999999999998, 177.0, 0.021173514162573587, 0.05551735462014437, 0.01875645130509641], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-1 GET nonprod.identity.healthsafe-id.com/assets/schema/v1/registersuccess/schema.json", 76, 0, 0.0, 6.842105263157895, 6, 11, 7.0, 8.0, 9.149999999999991, 11.0, 0.021176770865667383, 0.05544426044028736, 0.025888645921047424], "isController": false}, {"data": ["SC01_OpPhRegUsr. 07 address.", 74, 0, 0.0, 653.9594594594594, 500, 1570, 595.5, 873.5, 1053.5, 1570.0, 0.021009148916538316, 0.052795689575629384, 0.06404385748557395], "isController": true}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-1 GET nonprod.identity.healthsafe-id.com/oidc/authorize-2", 76, 0, 0.0, 114.74999999999999, 68, 165, 112.0, 129.89999999999998, 149.59999999999997, 165.0, 0.021173431578055856, 0.055530741489394894, 0.01875637814801566], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-9 GET nonprod.identity.healthsafe-id.com/assets/schema/v1/login/schema.json", 76, 0, 0.0, 6.710526315789474, 5, 11, 7.0, 8.0, 8.0, 11.0, 0.021174782505729035, 0.08180414022721098, 0.02173527865038623], "isController": false}, {"data": ["SC01_OpPhRegUsr. 01 registerNow.-5 GET rba-screen.healthsafe-id.com/fp/ARF;CIS3SID=5009F6A20ECC636CB9BD1F046B8A147B", 76, 0, 0.0, 49.72368421052631, 49, 53, 50.0, 50.0, 51.0, 53.0, 0.021174505227038058, 0.008395360470876417, 0.10250197501018327], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-1 GET nonprod.identity.healthsafe-id.com/oidc/authorize-1", 76, 0, 0.0, 136.25, 103, 186, 137.5, 160.3, 165.89999999999995, 186.0, 0.021173348994182346, 0.013977718671940687, 0.018756304991505587], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-7 GET nonprod.identity.healthsafe-id.com/assets/en/v1/content.json", 76, 0, 0.0, 6.723684210526318, 5, 11, 7.0, 8.0, 8.0, 11.0, 0.02117481790353143, 0.07711024996315304, 0.01842674968774109], "isController": false}, {"data": ["SC01_OpPhRegUsr. 02 contRegister.-1 GET nonprod.identity.healthsafe-id.com/....multistepregistration/setupAuth/schema.json", 76, 0, 0.0, 6.947368421052634, 6, 13, 7.0, 8.299999999999997, 10.149999999999991, 13.0, 0.02117575008825551, 0.11659070214607868, 0.026409826063503287], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-1 GET nonprod.identity.healthsafe-id.com/oidc/authorize-0", 76, 0, 0.0, 201.26315789473685, 148, 304, 201.0, 227.3, 241.74999999999994, 304.0, 0.021173213322074384, 0.022103948863485986, 0.02214720725316282], "isController": false}, {"data": ["SC01_OpPhRegUsr. 06 setUpContinue.-4 GET prfpharmacy.optum.com/consumer/api/content/getinsurancecardupload:v1", 74, 0, 0.0, 20.60810810810811, 16, 57, 20.0, 24.5, 29.25, 57.0, 0.021012674618165625, 0.02450110692782203, 0.021340997659074466], "isController": false}, {"data": ["SC01_OpPhRegUsr. 01 registerNow.-2 GET rba-screen.healthsafe-id.com/..../fp/top_fp.html;CIS3SID=6AD4D1A380D92632599A7E64D1E6CCEC", 76, 0, 0.0, 53.46052631578945, 52, 101, 53.0, 54.0, 54.0, 101.0, 0.021174487528644766, 0.31695697060298533, 0.018134790588497516], "isController": false}, {"data": ["SC01_OpPhRegUsr. 01 registerNow.-0 GET rba-screen.healthsafe-id.com/..../fp/ls_fp.html;CIS3SID=6AD4D1A380D92632599A7E64D1E6CCEC", 76, 0, 0.0, 319.05263157894746, 300, 930, 311.0, 318.0, 323.59999999999997, 930.0, 0.021172800417661345, 0.3285772464898422, 0.018112669107296232], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-3 POST nonprod.identity.healthsafe-id.com/oidc/auth/callback", 76, 0, 0.0, 1346.3157894736842, 843, 3283, 1222.0, 1759.3999999999996, 2306.0499999999993, 3283.0, 0.021169509555387378, 0.18040353341746357, 0.04545743062319972], "isController": false}, {"data": ["SC01_OpPhRegUsr. 02 contRegister.-0 POST nonprod.identity.healthsafe-id.com/api/v3/users/check-eligibility", 76, 0, 0.0, 182.5921052631579, 98, 306, 182.5, 227.3, 240.29999999999998, 306.0, 0.021174676313031927, 0.0236767620883023, 0.02886812752894592], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-2 GET nonprod.identity.healthsafe-id.com/api/secure/v1/users/next-step", 76, 0, 0.0, 267.14473684210515, 226, 349, 261.0, 304.0, 308.29999999999995, 349.0, 0.021175219086896693, 0.02169110384466751, 0.03317198852512091], "isController": false}, {"data": ["SC01_OpPhRegUsr. 09 enterInsurance.-0 GET prfpharmacy.optum.com/consumer/api/content/getinsuranceformthirdeye:v1", 74, 0, 0.0, 21.472972972972972, 17, 32, 21.0, 27.0, 29.25, 32.0, 0.021018183284806893, 0.05394230643602335, 0.02138764353786014], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-5 GET nonprod.identity.healthsafe-id.com/api/v2/auth/login/init", 76, 0, 0.0, 153.76315789473682, 110, 218, 145.5, 181.0, 195.59999999999997, 218.0, 0.021173773718109093, 0.5300313261280746, 0.018363808476530265], "isController": false}, {"data": ["SC01_OpPhRegUsr. 08 billingAddress.", 74, 2, 2.7027027027027026, 694.2837837837836, 483, 2087, 597.5, 1091.5, 1379.75, 2087.0, 0.021009459083084745, 0.08759449465578982, 0.08111803832764138], "isController": true}, {"data": ["SC01_OpPhRegUsr. 02 contRegister.-4 POST nonprod.identity.healthsafe-id.com/api/v1/users/check-email", 76, 0, 0.0, 193.11842105263156, 120, 821, 192.0, 224.39999999999998, 245.45, 821.0, 0.02117481790353143, 0.022394851356957558, 0.22039207796080376], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-7 GET prfpharmacy.optum.com/consumer/api/content/getprescriberinfo:v1", 75, 0, 0.0, 17.986666666666668, 14, 25, 18.0, 22.0, 23.0, 25.0, 0.02130074867871456, 0.019638569162678927, 0.017951705185283853], "isController": false}, {"data": ["SC01_OpPhRegUsr. 09 enterInsurance.", 74, 0, 0.0, 21.472972972972972, 17, 32, 21.0, 27.0, 29.25, 32.0, 0.021018177315024415, 0.05394229111482116, 0.02138763746314008], "isController": true}, {"data": ["SC01_OpPhRegUsr. 01 registerNow.", 76, 0, 0.0, 657.6052631578948, 603, 1361, 643.0, 683.0, 698.3499999999998, 1361.0, 0.02117082459804682, 1.4207608070095485, 0.29190950148000777], "isController": true}, {"data": ["SC01_OpPhRegUsr. 02 contRegister.-3 POST nonprod.identity.healthsafe-id.com/api/v1/users/checkusername", 76, 0, 0.0, 199.86842105263162, 124, 256, 199.0, 237.3, 239.0, 256.0, 0.021174481629186906, 0.023097554667775168, 0.21772299410792187], "isController": false}, {"data": ["SC01_OpPhRegUsr. 01 registerNow.-3 GET nonprod.identity.healthsafe-id.com/api/v1/users/registration/init", 76, 0, 0.0, 175.24999999999994, 140, 249, 168.0, 208.89999999999998, 218.0, 249.0, 0.021173803213458964, 0.48188740025676025, 0.024649806886556613], "isController": false}, {"data": ["SC01_OpPhRegUsr. 03 setUpAccount.-1 GET nonprod.identity.healthsafe-id.com/....multistepregistration/addTFA/schema.json", 76, 0, 0.0, 7.000000000000001, 6, 12, 7.0, 8.299999999999997, 9.149999999999991, 12.0, 0.021175956595976125, 0.10201268934370138, 0.02624464645347308], "isController": false}, {"data": ["SC01_OpPhRegUsr. 06 setUpContinue.-2 POST prfpharmacy.optum.com/....v1.0/rxprofile/search", 74, 0, 0.0, 388.33783783783775, 262, 1164, 331.0, 555.0, 862.0, 1164.0, 0.021010347880254646, 0.02222340045595294, 0.026406560275280985], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-4 GET nonprod.identity.healthsafe-id.com/api/v1/users/common/chat-support-info", 76, 0, 0.0, 134.19736842105263, 96, 195, 129.5, 163.3, 184.29999999999998, 195.0, 0.021173879901753196, 0.019685091471161174, 0.018674064824947736], "isController": false}, {"data": ["SC01_OpPhRegUsr. 08 billingAddress.-0 PUT prfpharmacy.optum.com/....v1.0/rxconsumer/update", 74, 2, 2.7027027027027026, 289.25675675675683, 194, 1076, 233.5, 367.0, 658.75, 1076.0, 0.021011487320845127, 0.03005927067281906, 0.03208538630116333], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-3 POST nonprod.identity.healthsafe-id.com/oidc/auth/callback-1", 76, 0, 0.0, 1178.4078947368419, 685, 3123, 1056.0, 1597.6999999999996, 2140.9499999999994, 3123.0, 0.021170399992423226, 0.1630034294132902, 0.02137714217984923], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-3 POST nonprod.identity.healthsafe-id.com/oidc/auth/callback-0", 76, 0, 0.0, 167.67105263157904, 145, 268, 161.5, 194.6, 207.45, 268.0, 0.021175744188094106, 0.017412086529663317, 0.024088279727122672], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.", 75, 1, 1.3333333333333333, 2932.8666666666663, 2217, 4868, 2798.0, 3778.4000000000005, 4022.8000000000015, 4868.0, 0.021272305075486903, 0.8364525180169333, 0.2791998350651826], "isController": true}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-10 GET nonprod.identity.healthsafe-id.com/api/v1/auth/risk/init", 76, 0, 0.0, 134.47368421052633, 91, 205, 123.5, 167.0, 170.0, 205.0, 0.021173974288108695, 0.01728656494615124, 0.021465638818804273], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-10 POST prfpharmacy.optum.com/....v1.0/rxconsumer/create", 75, 1, 1.3333333333333333, 301.64, 156, 1249, 223.0, 535.4000000000005, 1024.6000000000004, 1249.0, 0.02129987756830374, 0.01659421321021247, 0.030574476601658494], "isController": false}, {"data": ["SC01_OpPhRegUsr. 01 registerNow.-4 GET nonprod.identity.healthsafe-id.com/assets/schema/v1/fullstepup/schema.json", 76, 0, 0.0, 6.828947368421054, 6, 10, 7.0, 8.0, 8.149999999999991, 10.0, 0.021174705810896505, 0.15366136609450382, 0.025291888792116766], "isController": false}, {"data": ["SC01_OpPhRegUsr. 07 address.-1 POST prfpharmacy.optum.com/....v1.0/rxprofile/search", 74, 0, 0.0, 357.4189189189189, 269, 1348, 320.0, 441.0, 495.75, 1348.0, 0.021011242718468656, 0.025456333934945785, 0.027823481568597163], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-6 GET nonprod.identity.healthsafe-id.com/app/error.html", 76, 0, 0.0, 54.40789473684212, 34, 89, 41.5, 80.0, 82.14999999999999, 89.0, 0.021174540623913413, 0.031100106541372824, 0.018199047507868014], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-8 GET nonprod.identity.healthsafe-id.com/api/v1/users/common/content", 76, 0, 0.0, 155.55263157894737, 124, 220, 150.0, 188.3, 195.29999999999998, 220.0, 0.021173868103517925, 0.20475182694263275, 0.01900489610874453], "isController": false}, {"data": ["SC01_OpPhRegUsr. 06 setUpContinue.-0 GET prfpharmacy.optum.com/consumer/op/consumer/personal-info", 74, 0, 0.0, 31.027027027027028, 21, 95, 28.5, 39.5, 48.25, 95.0, 0.02101212570021489, 0.1599745501275493, 0.018467688603704496], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-6 GET prfpharmacy.optum.com/consumer/api/op/secure/auth-proxy/user-info", 75, 0, 0.0, 39.626666666666665, 27, 117, 36.0, 50.400000000000034, 67.40000000000003, 117.0, 0.021300597439156972, 0.012792007227718723, 0.018700426853322384], "isController": false}, {"data": ["SC01_OpPhRegUsr. 01 registerNow.-1 GET rba-screen.healthsafe-id.com/fp/HP", 76, 0, 0.0, 53.28947368421051, 50, 109, 53.0, 53.3, 55.0, 109.0, 0.021174428534214116, 0.1314877486950562, 0.1032666954100247], "isController": false}, {"data": ["SC01_OpPhRegUsr. 04 textMe.-1 GET nonprod.identity.healthsafe-id.com/....multistepregistration/verifyTFA/schema.json", 76, 0, 0.0, 6.921052631578948, 5, 10, 7.0, 8.0, 9.0, 10.0, 0.02117624571355171, 0.07990723968473028, 0.026265684701862142], "isController": false}, {"data": ["SC01_OpPhRegUsr. 00 landingPage.-0 GET prfpharmacy.optum.com/consumer/op/hsid/login", 76, 0, 0.0, 823.2368421052632, 518, 14916, 612.5, 686.9, 892.8999999999967, 14916.0, 0.021166272769757185, 0.1081537682893307, 0.07090309732196519], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-11 POST prfpharmacy.optum.com/....v1.0/rxprofile/search", 74, 0, 0.0, 385.83783783783775, 284, 1303, 344.5, 458.5, 635.75, 1303.0, 0.021009214527928626, 0.01994234035268225, 0.0259332491829119], "isController": false}, {"data": ["SC01_OpPhRegUsr. 06 setUpContinue.-1 GET prfpharmacy.optum.com/consumer/api/content/getlandingpageop:v1", 74, 0, 0.0, 26.486486486486488, 20, 49, 25.0, 33.0, 37.25, 49.0, 0.021012179397444524, 0.39776896352739977, 0.019801516717318324], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-8 GET prfpharmacy.optum.com/consumer/api/content/getpersonalinfo:v1", 75, 0, 0.0, 24.066666666666663, 16, 69, 21.0, 33.400000000000006, 48.60000000000001, 69.0, 0.021300700281822467, 0.05286456610047512, 0.017910061467430804], "isController": false}, {"data": ["SC01_OpPhRegUsr. 03 setUpAccount.", 76, 0, 0.0, 177.59210526315795, 115, 248, 186.5, 229.6, 233.45, 248.0, 0.02117475890725985, 0.12487731351654514, 0.05546212004541986], "isController": true}, {"data": ["SC01_OpPhRegUsr. 06 setUpContinue.-3 GET prfpharmacy.optum.com/consumer/api/content/getpersonalinfo:v1", 74, 0, 0.0, 20.89189189189189, 16, 41, 20.0, 26.0, 27.75, 41.0, 0.021012650751571407, 0.054421700616295365, 0.02119733225231764], "isController": false}, {"data": ["SC01_OpPhRegUsr. 04 textMe.", 76, 0, 0.0, 188.10526315789474, 120, 252, 197.0, 228.3, 243.14999999999998, 252.0, 0.02117481200388948, 0.1051089545075881, 0.0556709489937785], "isController": true}]}, function(index, item){
+        switch(index){
+            // Errors pct
+            case 3:
+                item = item.toFixed(2) + '%';
+                break;
+            // Mean
+            case 4:
+            // Mean
+            case 7:
+            // Median
+            case 8:
+            // Percentile 1
+            case 9:
+            // Percentile 2
+            case 10:
+            // Percentile 3
+            case 11:
+            // Throughput
+            case 12:
+            // Kbytes/s
+            case 13:
+            // Sent Kbytes/s
+                item = item.toFixed(2);
+                break;
+        }
+        return item;
+    }, [[0, 0]], 0, summaryTableHeader);
+
+    // Create error table
+    createTable($("#errorsTable"), {"supportsControllersDiscrimination": false, "titles": ["Type of error", "Number of errors", "% in errors", "% in all samples"], "items": [{"data": ["500/Internal Server Error", 3, 100.0, 0.07228915662650602], "isController": false}]}, function(index, item){
+        switch(index){
+            case 2:
+            case 3:
+                item = item.toFixed(2) + '%';
+                break;
+        }
+        return item;
+    }, [[1, 1]]);
+
+        // Create top5 errors by sampler
+    createTable($("#top5ErrorsBySamplerTable"), {"supportsControllersDiscrimination": false, "overall": {"data": ["Total", 4150, 3, "500/Internal Server Error", 3, "", "", "", "", "", "", "", ""], "isController": false}, "titles": ["Sample", "#Samples", "#Errors", "Error", "#Errors", "Error", "#Errors", "Error", "#Errors", "Error", "#Errors", "Error", "#Errors"], "items": [{"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": ["SC01_OpPhRegUsr. 08 billingAddress.-0 PUT prfpharmacy.optum.com/....v1.0/rxconsumer/update", 74, 2, "500/Internal Server Error", 2, "", "", "", "", "", "", "", ""], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": ["SC01_OpPhRegUsr. 05 createAccount.-10 POST prfpharmacy.optum.com/....v1.0/rxconsumer/create", 75, 1, "500/Internal Server Error", 1, "", "", "", "", "", "", "", ""], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}, {"data": [], "isController": false}]}, function(index, item){
+        return item;
+    }, [[0, 0]], 0);
+
+});
